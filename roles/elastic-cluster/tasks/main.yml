@@ -1,0 +1,176 @@
+---
+
+- name: install python pip
+  apt:
+    name: python3-pip
+    state: present
+  tags:
+    - elastic
+
+- name: install ansible docker dependency
+  pip:
+    name: docker
+  tags:
+    - elastic
+
+- name: Configure vm.max_map_count
+  sysctl:
+    name: vm.max_map_count
+    value: 262144
+    sysctl_set: yes
+    state: present
+    reload: yes
+  tags:
+    - elastic
+    - elastic-sysctl
+    
+- name: Create directories if they do not exist
+  file:
+    path: '{{ item }}'
+    state: directory
+  with_items:
+    - '{{ main_directory }}'
+    - '{{ main_directory }}/elastic'
+  tags:
+    - elastic
+    
+- name: Create docker network
+  docker_network:
+    name: '{{ docker_network }}'
+  tags:
+    - elastic
+
+# For some reason the docker_network variable is overwritten after creating the network.
+- name: Reset the docker_network variable
+  set_fact:
+    docker_network: greeniot  # This should be the same as defined in the playbook.
+  tags:
+    - elastic
+
+- name: Copy docker-compose file
+  template:
+    src: docker-compose.yml
+    dest: '{{ main_directory }}/elastic/docker-compose.yml'
+  tags:
+    - elastic
+
+- name: Delete ansible cluster and volumes
+  docker_service:
+    project_src: '{{ main_directory }}/elastic'
+    remove_volumes: yes
+    state: absent
+  tags:
+    - elastic-remove
+    
+- name: Delete ansible cluster
+  docker_service:
+    project_src: '{{ main_directory }}/elastic'
+    state: absent
+  tags:
+    - elastic
+
+- name: Setup ansible cluster
+  docker_service:
+    project_src: '{{ main_directory }}/elastic'
+    state: present
+  tags:
+    - elastic
+
+- name: Stop elastic systemd service
+  systemd:
+    name: elastic
+    state: stopped
+    enabled: no
+  tags:
+    - elastic-remove
+
+- name: Remove systemd service file
+  file:
+    path: /etc/systemd/system/elastic.service
+    state: absent
+  tags:
+    - elastic-remove
+
+- name: install elastic systemd service
+  template:
+    src: elastic.service
+    dest: /etc/systemd/system/elastic.service
+  notify:
+    - reload systemd daemon
+    - enable elastic
+    - start elastic
+  tags:
+    - elastic
+    - elastic-systemd
+
+- name: Wait for elastic to start
+  uri:
+    url: http://localhost:9200/
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 6
+  delay: 20
+  tags:
+    - elastic
+    
+- name: Create mapping template
+  uri:
+    url: http://localhost:9200/_template/measurements-template
+    method: PUT
+    body:
+      index_patterns:
+        - "measurements*"
+      version: 1
+      settings:
+        index:
+          lifecycle:
+            name: measurements_policy
+      mappings:
+        _doc:
+          _source:
+            enabled: true
+          dynamic_templates:
+            - values_as_doubles:
+                match: v
+                mapping:
+                  type: double
+    body_format: json
+  tags:
+    - elastic
+    - elastic-config
+
+- name: Create automatic index naming policy
+  uri:
+    url: http://localhost:9200/_ingest/pipeline/dailyindex
+    method: PUT
+    body:
+      description: daily date-time index naming
+      processors:
+        - date_index_name:
+            field: timestamp
+            index_name_prefix: "measurements-"
+            date_rounding: "d"
+            index_name_format: "yyyy-MM-dd"
+    body_format: json
+  tags:
+    - elastic
+    - elastic-config
+    - elastic-config-pipeline
+
+- name: Create index rotation policy
+  uri:
+    url: http://localhost:9200/_ilm/policy/measurements_policy
+    method: PUT
+    body:
+      policy:
+        phases:
+          delete:
+            min_age: "180d"
+            actions:
+              delete: {}
+    body_format: json
+  tags:
+    - elastic
+    - elastic-config
+    - elastic-config-ilm

@@ -1,0 +1,14 @@
+[Unit]
+Description=Docker MQTT-to-Elastic containers
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory={{ main_directory }}/
+ExecStart=/usr/local/bin/docker-compose start
+ExecStop=/usr/local/bin/docker-compose stop
+
+[Install]
+WantedBy=multi-user.target

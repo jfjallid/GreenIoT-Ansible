@@ -1,0 +1,72 @@
+---
+
+- name: Create directories if they do not exist
+  file:
+    path: '{{ item }}'
+    state: directory
+  with_items:
+    - '{{ main_directory }}'
+    - '{{ main_directory }}/tagger'
+    - '{{ main_directory }}/parser'
+    - '{{ main_directory }}/graphql-demo'
+  tags:
+    - mqtt-to-elastic
+
+- name: Clone tagger repo
+  git:
+    repo: 'https://github.com/jfjallid/GreenIoT-MQTT-Tagger.git'
+    dest: '{{ main_directory }}/tagger'
+    force: yes
+  tags:
+    - mqtt-to-elastic
+    
+- name: Clone parser repo
+  git:
+    repo: 'https://github.com/jfjallid/GreenIoT-SenML-Parser.git'
+    dest: '{{ main_directory }}/parser'
+    force: yes
+  tags:
+    - mqtt-to-elastic
+    
+- name: Clone demo repo
+  git:
+    repo: 'https://github.com/jfjallid/GreenIoT-GraphQL-Demo.git'
+    dest: '{{ main_directory }}/graphql-demo'
+    force: yes
+  tags:
+    - mqtt-to-elastic
+
+- name: Copy docker-compose file
+  template:
+    src: docker-compose.yml
+    dest: '{{ main_directory }}/'
+  tags:
+    - mqtt-to-elastic
+    
+- name: Delete old containers
+  docker_service:
+    project_src: '{{ main_directory }}/'
+    state: absent
+    remove_images: all
+  tags:
+    - mqtt-to-elastic
+    - mqtt-to-elastic-rebuild
+
+- name: Run containers
+  docker_service:
+    project_src: '{{ main_directory }}/'
+    state: present
+  tags:
+    - mqtt-to-elastic
+    - mqtt-to-elastic-rebuild
+
+- name: install systemd service
+  template:
+    src: mqtt-to-elastic.service
+    dest: /etc/systemd/system/mqtt-to-elastic.service
+  notify:
+    - reload systemd daemon
+    - enable mqtt-to-elastic
+    - start mqtt-to-elastic
+  tags:
+    - mqtt-to-elastic

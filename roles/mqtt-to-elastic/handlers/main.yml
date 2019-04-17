@@ -1,0 +1,27 @@
+---
+
+- name: start mqtt-to-elastic
+  systemd:
+    state: started
+    name: mqtt-to-elastic
+    daemon-reload: yes
+
+- name: stop mqtt-to-elastic
+  systemd:
+    state: stopped
+    name: mqtt-to-elastic
+
+- name: restart mqtt-to-elastic
+  systemd:
+    state: restarted
+    name: mqtt-to-elastic
+
+- name: enable mqtt-to-elastic
+  systemd:
+    enabled: yes
+    name: mqtt-to-elastic
+
+- name: reload systemd daemon
+  systemd:
+    name: mqtt-to-elastic
+    daemon-reload: yes

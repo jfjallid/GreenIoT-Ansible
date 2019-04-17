@@ -1,0 +1,29 @@
+version: '2.2'
+services:
+  tagger:
+    build: {{ main_directory }}/tagger
+    image: greeniot-mqtt-tagger
+    container_name: tagger
+    environment:
+      - PARSER_URL=http://parser:5000/parse
+
+  parser:
+    build: {{ main_directory }}/parser
+    image: greeniot-senml-parser
+    container_name: parser
+    environment:
+      - ELASTIC_HOST=elasticsearch
+
+  demo:
+    build: {{ main_directory }}/graphql-demo
+    image: greeniot-graphql-demo
+    container_name: demo-app
+    environment:
+      - ELASTIC_HOST=elasticsearch
+    ports:
+      - "80:5000"
+
+networks:
+  default:
+    external:
+      name: {{ docker_network }}

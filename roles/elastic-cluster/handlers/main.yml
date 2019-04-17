@@ -1,0 +1,27 @@
+---
+
+- name: start elastic
+  systemd:
+    state: started
+    name: elastic
+    daemon-reload: yes
+
+- name: stop elastic
+  systemd:
+    state: stopped
+    name: elastic
+
+- name: restart elastic
+  systemd:
+    state: restarted
+    name: elastic
+
+- name: enable elastic
+  systemd:
+    enabled: yes
+    name: elastic
+
+- name: reload systemd daemon
+  systemd:
+    name: elastic
+    daemon-reload: yes
